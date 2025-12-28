@@ -3,6 +3,7 @@ import io
 import random
 import argparse
 
+
 class Deck:
     def __init__(self):
         self.cards = {}
@@ -25,6 +26,7 @@ class Deck:
         hardest = [term for term, data in self.cards.items() if data['mistakes'] == max_mistakes]
         return hardest, max_mistakes
 
+
 class SessionLogger:
     def __init__(self):
         self.buffer = io.StringIO()
@@ -44,6 +46,7 @@ class SessionLogger:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(self.buffer.getvalue())
 
+
 class FlashcardApp:
     def __init__(self, import_from=None, export_to=None):
         self.import_from = import_from
@@ -56,10 +59,13 @@ class FlashcardApp:
 
     def run(self):
         while True:
-            action = self.logger.log_input("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
-            
+            action = self.logger.log_input(
+                "Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
+
             if action == "exit":
-                self.exit_action()
+                if self.export_to:
+                    self.export_action()
+                self.logger.log_print("Bye bye!")
                 break
             elif action == "add":
                 self.add_action()
@@ -78,11 +84,6 @@ class FlashcardApp:
             elif action == "reset stats":
                 self.reset_stats_action()
 
-    def exit_action(self):
-        if self.export_to:
-            self.export_action()
-        self.logger.log_print("Bye bye!")
-
     def add_action(self):
         self.logger.log_print("The card:")
         while True:
@@ -90,14 +91,14 @@ class FlashcardApp:
             if term not in self.deck.cards:
                 break
             self.logger.log_print(f'The card "{term}" already exists. Try again:')
-        
+
         self.logger.log_print("The definition of the card:")
         while True:
             definition = self.logger.log_input()
             if all(d["definition"] != definition for d in self.deck.cards.values()):
                 break
             self.logger.log_print(f'The definition "{definition}" already exists. Try again:')
-        
+
         self.deck.add_card(term, definition)
         self.logger.log_print(f'The pair ("{term}":"{definition}") has been added.')
 
@@ -116,14 +117,14 @@ class FlashcardApp:
         except ValueError:
             return
 
-        # Note: The test hints at randomness. Using random.choice or similar 
+        # Note: The test hints at randomness. Using random.choice or similar
         # is usually expected if you aren't cycling.
         card_list = list(self.deck.cards.items())
         for _ in range(times):
             term, data = random.choice(card_list)
             self.logger.log_print(f'Print the definition of "{term}":')
             guess = self.logger.log_input()
-            
+
             if guess == data["definition"]:
                 self.logger.log_print("Correct!")
             else:
@@ -131,13 +132,17 @@ class FlashcardApp:
                 # Check if it matches another card's definition
                 other_term = next((t for t, d in self.deck.cards.items() if d["definition"] == guess), None)
                 if other_term:
-                    self.logger.log_print(f'Wrong. The right answer is "{data["definition"]}", but your definition is correct for "{other_term}".')
+                    self.logger.log_print(
+                        f'Wrong. The right answer is "{data["definition"]}", but your definition is correct for "{other_term}".')
                 else:
                     self.logger.log_print(f'Wrong. The right answer is "{data["definition"]}".')
 
     def export_action(self):
-        self.logger.log_print("File name:")
-        filename = self.logger.log_input()
+        if not self.export_to:
+            self.logger.log_print("File name:")
+            filename = self.logger.log_input()
+        else:
+            filename = self.export_to
         with open(filename, "w") as f:
             json.dump(self.deck.cards, f)
         self.logger.log_print(f"{len(self.deck.cards)} cards have been saved.")
@@ -177,6 +182,7 @@ class FlashcardApp:
         self.logger.save(filename)
         self.logger.log_print("The log has been saved.")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Flashcard application")
     parser.add_argument("--import_from", help="file to import cards from")
@@ -184,6 +190,7 @@ def main():
     args = parser.parse_args()
     app = FlashcardApp(import_from=args.import_from, export_to=args.export_to)
     app.run()
+
 
 if __name__ == "__main__":
     main()
