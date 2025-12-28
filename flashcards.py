@@ -1,23 +1,14 @@
 import json
-import sys
 import io
 from itertools import cycle
-
-# class Flashcard:
-#     def __init__(self, name, definition):
-#         self.name = name
-#         self.definition = definition
-
-    # def check_definition(self, guess):
-    #     return guess == self.definition
 
 class Deck:
     def __init__(self):
         self.cards = {}
 
-    def add_card(self, card, definition):
+    def add_card(self, card, definition, logger):
         self.cards[card] = {"definition": definition, "mistakes": 0}
-        print(f'The pair ("{card}":"{definition}") has been added.')
+        logger.log_print(f'The pair ("{card}":"{definition}") has been added.')
 
     def term_exists(self, term):
         return term in self.cards
@@ -28,172 +19,138 @@ class Deck:
                 return name
         return None
 
-    def remove_card(self, name):
+    def remove_card(self, name, logger):
         if name in self.cards:
             del self.cards[name]
-            print("The card has been removed.")
+            logger.log_print("The card has been removed.")
         else:
-            print(f'Can\'t remove "{name}": there is no such card.')
-
-class Tee:
-    """Duplicates writes to multiple streams."""
-    def __init__(self, *streams):
-        self.streams = streams
-
-    def write(self, data):
-        for s in self.streams:
-            s.write(data)
-
-    def flush(self):
-        for s in self.streams:
-            s.flush()
-
+            logger.log_print(f'Can\'t remove "{name}": there is no such card.')
 
 class SessionLogger:
     def __init__(self):
-        # In‑memory transcript
         self.buffer = io.StringIO()
 
-        # Keep a reference to the real console stdout
-        self.console = sys.__stdout__
+    def log_print(self, message, end='\n'):
+        """Prints to console and saves to buffer."""
+        print(message, end=end)
+        self.buffer.write(f"{message}{end}")
 
-        # Create a Tee that writes to console AND buffer
-        self.tee = Tee(self.console, self.buffer)
-
-        # Redirect stdout globally
-        sys.stdout = self.tee
-
-    def input(self, prompt=None):
-        """Capture user input, with or without a prompt."""
-        if prompt is None:
-            value = input()
-        else:
-            value = input(prompt)
-
-        # Log what the user typed
+    def log_input(self, prompt=None):
+        """Prints prompt (if any), takes input, and logs both."""
+        if prompt:
+            self.log_print(prompt)
+        
+        value = input()
         self.buffer.write(f"{value}\n")
         return value
 
-    def save(self, filename="session.txt"):
-        """Save the entire transcript to a file."""
+    def save(self, filename):
         with open(filename, "w") as f:
             f.write(self.buffer.getvalue())
-        print(f"Transcript saved to {filename}")
-
-    def get_transcript(self):
-        """Optional: return the transcript as a string."""
-        return self.buffer.getvalue()
-
+        self.log_print("The log has been saved.")
 
 def main():
     logger = SessionLogger()
     deck = Deck()
     while True:
-        print("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats)")
-        action = logger.input()
-
-        if action not in ("add", "remove", "import", "export", "ask", "exit", "log", "hardest card", "reset stats"):
-            print("Unknown command")
-            continue
+        action = logger.log_input("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
 
         if action == "exit":
-            print("Bye bye!")
+            logger.log_print("Bye bye!")
             break
 
         if action == "add":
-            print(f"The card:")
+            logger.log_print("The card:")
             while True:
-                card = logger.input()
+                card = logger.log_input()
                 if not deck.term_exists(card):
                     break
                 else:
-                    print(f'The card "{card}" already exists. Try again:')
-            print("The definition of the card:")
+                    logger.log_print(f'The card "{card}" already exists. Try again:')
+            
+            logger.log_print("The definition of the card:")
             while True:
-                definition = logger.input()
+                definition = logger.log_input()
                 if not deck.definition_exists(definition):
                     break
                 else:
-                    print(f'The definition "{definition}" already exists. Try again:')
-            deck.add_card(card, definition)
-            continue
+                    logger.log_print(f'The definition "{definition}" already exists. Try again:')
+            deck.add_card(card, definition, logger)
 
-        if action == "remove":
-            print("Which card?")
-            card_to_remove = logger.input()
-            deck.remove_card(card_to_remove)
-            continue
+        elif action == "remove":
+            logger.log_print("Which card?")
+            card_to_remove = logger.log_input()
+            deck.remove_card(card_to_remove, logger)
 
-        if action == "ask":
-            while True:
-                print("How many times to ask?")
-                try:
-                    questions_number = int(logger.input())
-                    break
-                except ValueError:
-                    print("Invalid input. Try again:")
+        elif action == "ask":
+            logger.log_print("How many times to ask?")
+            try:
+                line = logger.log_input()
+                questions_number = int(line)
+            except ValueError:
+                continue
 
-            # Use .items() to get (key, value) pairs
             iter_deck = cycle(deck.cards.items())
-            for i in range(questions_number):
-                # card will now be a tuple: (name, definition)
-                card_name, card_definition = next(iter_deck)
-                #card = deck.cards[i]
-                print(f'Print the definition of "{card_name}":')
-                guess = logger.input()
+            for _ in range(questions_number):
+                card_name, card_data = next(iter_deck)
+                card_definition = card_data["definition"]
+                
+                logger.log_print(f'Print the definition of "{card_name}":')
+                guess = logger.log_input()
+                
                 if guess == card_definition:
-                    print('Correct!')
+                    logger.log_print('Correct!')
                 else:
                     deck.cards[card_name]["mistakes"] += 1
                     existing_card = deck.definition_exists(guess)
                     if existing_card:
-                        print(
-                            f'Wrong. The right answer is "{card_definition}", but your definition is correct for "{existing_card}".')
+                        logger.log_print(f'Wrong. The right answer is "{card_definition}", but your definition is correct for "{existing_card}".')
                     else:
-                        print(f'Wrong. The right answer is "{card_definition}".')
-            continue
+                        logger.log_print(f'Wrong. The right answer is "{card_definition}".')
 
-        if action == "export":
-            print("File name:")
-            file_name = logger.input()
-            try:
-                with open(file_name, "w") as file:
-                    json.dump(deck.cards, file)
-                print(f"{len(deck.cards)} cards have been saved.")
-            except Exception as e:
-                print(f"An error occurred while saving: {e}")
-            continue
+        elif action == "export":
+            logger.log_print("File name:")
+            file_name = logger.log_input()
+            with open(file_name, "w") as file:
+                json.dump(deck.cards, file)
+            logger.log_print(f"{len(deck.cards)} cards have been saved.")
 
-        if action == "import":
-            print("File name:")
-            file_name = logger.input()
+        elif action == "import":
+            logger.log_print("File name:")
+            file_name = logger.log_input()
             try:
                 with open(file_name, "r") as file:
                     cards_to_import = json.load(file)
                     deck.cards.update(cards_to_import)
-                    print(f"{len(cards_to_import)} cards have been loaded.")
+                    logger.log_print(f"{len(cards_to_import)} cards have been loaded.")
             except FileNotFoundError:
-                print("File not found.")
-            except Exception as e:
-                print(f"An error occurred while loading: {e}")
-            continue
+                logger.log_print("File not found.")
 
-        if action == "log":
-            print("File name:")
-            file_name = logger.input()
-            logger.save(filename=file_name)
-            continue
+        elif action == "log":
+            logger.log_print("File name:")
+            file_name = logger.log_input()
+            logger.save(file_name)
 
-        # TODO: Finish off these two options
-        if action == "hardest card":
-            # print(f"The hardest card is: {max(deck.cards.items(), key=lambda x: x[1]['mistakes'])[0]}")
-            continue
+        elif action == "hardest card":
+            if not deck.cards:
+                logger.log_print("There are no cards with errors.")
+                continue
 
-        if action == "reset stats":
+            max_mistakes = max(card_data['mistakes'] for card_data in deck.cards.values())
+            if max_mistakes == 0:
+                logger.log_print("There are no cards with errors.")
+            else:
+                hardest_cards = [term for term, data in deck.cards.items() if data['mistakes'] == max_mistakes]
+                if len(hardest_cards) == 1:
+                    logger.log_print(f'The hardest card is "{hardest_cards[0]}". You have {max_mistakes} errors answering it.')
+                else:
+                    cards_str = ", ".join(f'"{c}"' for c in hardest_cards)
+                    logger.log_print(f'The hardest cards are {cards_str}. You have {max_mistakes} errors answering them.')
+
+        elif action == "reset stats":
             for card in deck.cards.values():
                 card["mistakes"] = 0
-            continue
-
+            logger.log_print("Card statistics have been reset.")
 
 if __name__ == "__main__":
     main()
