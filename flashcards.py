@@ -1,6 +1,7 @@
 import json
 import io
 import random
+import argparse
 
 class Deck:
     def __init__(self):
@@ -44,16 +45,21 @@ class SessionLogger:
             f.write(self.buffer.getvalue())
 
 class FlashcardApp:
-    def __init__(self):
+    def __init__(self, import_from=None, export_to=None):
+        self.import_from = import_from
+        self.export_to = export_to
         self.deck = Deck()
         self.logger = SessionLogger()
+
+        if self.import_from:
+            self.import_action()
 
     def run(self):
         while True:
             action = self.logger.log_input("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
             
             if action == "exit":
-                self.logger.log_print("Bye bye!")
+                self.exit_action()
                 break
             elif action == "add":
                 self.add_action()
@@ -71,6 +77,11 @@ class FlashcardApp:
                 self.hardest_card_action()
             elif action == "reset stats":
                 self.reset_stats_action()
+
+    def exit_action(self):
+        if self.export_to:
+            self.export_action()
+        self.logger.log_print("Bye bye!")
 
     def add_action(self):
         self.logger.log_print("The card:")
@@ -132,8 +143,11 @@ class FlashcardApp:
         self.logger.log_print(f"{len(self.deck.cards)} cards have been saved.")
 
     def import_action(self):
-        self.logger.log_print("File name:")
-        filename = self.logger.log_input()
+        if not self.import_from:
+            self.logger.log_print("File name:")
+            filename = self.logger.log_input()
+        else:
+            filename = self.import_from
         try:
             with open(filename, "r") as f:
                 new_cards = json.load(f)
@@ -164,7 +178,11 @@ class FlashcardApp:
         self.logger.log_print("The log has been saved.")
 
 def main():
-    app = FlashcardApp()
+    parser = argparse.ArgumentParser(description="Flashcard application")
+    parser.add_argument("--import_from", help="file to import cards from")
+    parser.add_argument("--export_to", help="file to export cards to")
+    args = parser.parse_args()
+    app = FlashcardApp(import_from=args.import_from, export_to=args.export_to)
     app.run()
 
 if __name__ == "__main__":
